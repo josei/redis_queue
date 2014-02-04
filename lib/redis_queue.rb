@@ -19,28 +19,22 @@ class RedisQueue
 
   def fail task
     @redis.run do |redis|
-      redis.pipelined do
-        redis.sadd "#{@id}_failed", task
-        redis.srem "#{@id}_in_use", task
-      end
+      redis.sadd "#{@id}_failed", task
+      redis.srem "#{@id}_in_use", task
     end
   end
 
   def done task
     @redis.run do |redis|
-      redis.pipelined do
-        redis.sadd "#{@id}_done", task
-        redis.srem "#{@id}_in_use", task
-      end
+      redis.sadd "#{@id}_done", task
+      redis.srem "#{@id}_in_use", task
     end
   end
 
   def unpop task
     @redis.run do |redis|
-      redis.pipelined do
-        redis.lpush @id, task
-        redis.srem "#{@id}_in_use", task
-      end
+      redis.lpush @id, task
+      redis.srem "#{@id}_in_use", task
     end
   end
 
