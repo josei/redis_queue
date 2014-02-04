@@ -1,23 +1,24 @@
 require_relative 'redis_connection'
 
 class RedisQueue
-  def initialize id=:messages, url='redis://localhost:6379/0'
-    @id = id
-    @redis_connection = RedisConnection.new(url)
+  def initialize args={id: :messages, url: 'redis://localhost:6379/0'}
+    @id             = args.delete(:id)
+    @redis          = RedisConnection.new(args)
+    @redis_blocking = RedisConnection.new(args)
   end
 
   def pop
-    @redis_connection.run do |redis|
+    @redis_blocking.run do |redis|
       redis.blpop(@id).last.tap { |msg| redis.sadd "#{@id}_in_use", msg }
     end
   end
 
   def push task
-    @redis_connection.run { |redis| redis.rpush @id, task }
+    @redis.run { |redis| redis.rpush @id, task }
   end
 
   def fail task
-    @redis_connection.run do |redis|
+    @redis.run do |redis|
       redis.pipelined do
         redis.sadd "#{@id}_failed", task
         redis.srem "#{@id}_in_use", task
@@ -26,7 +27,7 @@ class RedisQueue
   end
 
   def done task
-    @redis_connection.run do |redis|
+    @redis.run do |redis|
       redis.pipelined do
         redis.sadd "#{@id}_done", task
         redis.srem "#{@id}_in_use", task
@@ -35,7 +36,7 @@ class RedisQueue
   end
 
   def unpop task
-    @redis_connection.run do |redis|
+    @redis.run do |redis|
       redis.pipelined do
         redis.lpush @id, task
         redis.srem "#{@id}_in_use", task
@@ -45,16 +46,16 @@ class RedisQueue
 
   def reset
     init_from "#{@id}_in_use"
-    @redis_connection.run { |redis| redis.del "#{@id}_in_use" }
+    @redis.run { |redis| redis.del "#{@id}_in_use" }
   end
 
   def restart
     init_from "#{@id}_done"
-    @redis_connection.run { |redis| redis.del "#{@id}_done" }
+    @redis.run { |redis| redis.del "#{@id}_done" }
   end
 
   def init_from set
-    @redis_connection.run do |redis|
+    @redis.run do |redis|
       redis.eval "local vals = redis.call('smembers', '#{set}')
       for i = 1, table.getn(vals) do
         redis.call('rpush', '#{@id}', vals[i])
@@ -63,35 +64,35 @@ class RedisQueue
   end
 
   def size
-    @redis_connection.run { |redis| redis.llen @id }.to_i
+    @redis.run { |redis| redis.llen @id }.to_i
   end
 
   def done_size
-    @redis_connection.run { |redis| redis.scard "#{@id}_done" }.to_i
+    @redis.run { |redis| redis.scard "#{@id}_done" }.to_i
   end
 
   def failed_size
-    @redis_connection.run { |redis| redis.scard "#{@id}_failed" }.to_i
+    @redis.run { |redis| redis.scard "#{@id}_failed" }.to_i
   end
 
   def in_use_size
-    @redis_connection.run { |redis| redis.scard "#{@id}_in_use" }.to_i
+    @redis.run { |redis| redis.scard "#{@id}_in_use" }.to_i
   end
 
   def list
-    @redis_connection.run { |redis| redis.lrange @id, 0, -1 }
+    @redis.run { |redis| redis.lrange @id, 0, -1 }
   end
 
   def done_list
-    @redis_connection.run { |redis| redis.smembers "#{@id}_done" }
+    @redis.run { |redis| redis.smembers "#{@id}_done" }
   end
 
   def failed_list
-    @redis_connection.run { |redis| redis.smembers "#{@id}_failed" }
+    @redis.run { |redis| redis.smembers "#{@id}_failed" }
   end
 
   def in_use_list
-    @redis_connection.run { |redis| redis.smembers "#{@id}_in_use" }
+    @redis.run { |redis| redis.smembers "#{@id}_in_use" }
   end
 
   def print_stats
@@ -109,7 +110,7 @@ class RedisQueue
   end
 
   def clear
-    @redis_connection.run do |redis|
+    @redis.run do |redis|
       redis.del @id
       redis.del "#{@id}_in_use"
       redis.del "#{@id}_done"

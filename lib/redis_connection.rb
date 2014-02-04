@@ -1,8 +1,8 @@
 require 'redis'
 
 class RedisConnection
-  def initialize url
-    @url = url
+  def initialize args
+    @args = args
   end
 
   def run
@@ -20,6 +20,6 @@ class RedisConnection
   end
 
   def new_redis
-    ::Redis.connect(url: @url)
+    ::Redis.connect(@args)
   end
 end
