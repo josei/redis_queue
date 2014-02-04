@@ -8,9 +8,9 @@ class RedisQueue
   end
 
   def pop
-    @redis_blocking.run do |redis|
-      redis.blpop(@id).last.tap { |msg| redis.sadd "#{@id}_in_use", msg }
-    end
+    message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    @redis.run { |redis| redis.sadd "#{@id}_in_use", message }
+    message
   end
 
   def push task
