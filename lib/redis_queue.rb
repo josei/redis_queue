@@ -50,7 +50,10 @@ class RedisQueue
 
   def init_from set
     @redis_connection.run do |redis|
-      redis.rpush @id, redis.smembers(set)
+      redis.eval "local vals = redis.call('smembers', '#{set}')
+      for i = 1, table.getn(vals) do
+        redis.call('rpush', '#{@id}', vals[i])
+      end"
     end
   end
 
