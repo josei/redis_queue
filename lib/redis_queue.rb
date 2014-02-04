@@ -48,6 +48,11 @@ class RedisQueue
     @redis_connection.run { |redis| redis.del "#{@id}_in_use" }
   end
 
+  def restart
+    init_from "#{@id}_done"
+    @redis_connection.run { |redis| redis.del "#{@id}_done" }
+  end
+
   def init_from set
     @redis_connection.run do |redis|
       redis.eval "local vals = redis.call('smembers', '#{set}')

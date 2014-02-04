@@ -38,7 +38,6 @@ queue.pop.tap do |msg|
   puts        msg
 end
 
-
 queue.pop.tap do |msg|
   puts        msg
 end

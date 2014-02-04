@@ -27,6 +27,13 @@ describe RedisQueue do
     queue.list.should == ["message 1", "message 2"]
   end
 
+  it "restarts queue" do
+    queue.push "message 1"
+    queue.done queue.pop
+    queue.restart
+    queue.pop.should == "message 1"
+  end
+
   describe "in use list" do
     before do
       queue.push "message"
