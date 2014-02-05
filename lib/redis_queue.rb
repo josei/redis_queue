@@ -1,16 +1,37 @@
 require_relative 'redis_connection'
 
 class RedisQueue
+  SCRIPTS       = {
+    fail: """
+      redis.call('sadd', ARGV[1]..'_failed', ARGV[2])
+      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+    """,
+    done: """
+      redis.call('sadd', ARGV[1]..'_done', ARGV[2])
+      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+    """,
+    unpop: """
+      redis.call('lpush', ARGV[1], ARGV[2])
+      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+    """,
+    init_from: """
+      local vals = redis.call('smembers', ARGV[2])
+      for i = 1, table.getn(vals) do
+        redis.call('rpush', ARGV[1], vals[i])
+      end"""
+  }
+
   def initialize args={id: :messages, url: 'redis://localhost:6379/0'}
     @id             = args.delete(:id)
     @redis          = RedisConnection.new(args)
     @redis_blocking = RedisConnection.new(args)
+    load_scripts
   end
 
   def pop
-    message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
-    @redis.run { |redis| redis.sadd "#{@id}_in_use", message }
-    message
+    task = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    @redis.run { |redis| redis.sadd "#{@id}_in_use", task }
+    task
   end
 
   def push task
@@ -18,24 +39,15 @@ class RedisQueue
   end
 
   def fail task
-    @redis.run do |redis|
-      redis.sadd "#{@id}_failed", task
-      redis.srem "#{@id}_in_use", task
-    end
+    script :fail, @id, task
   end
 
   def done task
-    @redis.run do |redis|
-      redis.sadd "#{@id}_done", task
-      redis.srem "#{@id}_in_use", task
-    end
+    script :done, @id, task
   end
 
   def unpop task
-    @redis.run do |redis|
-      redis.lpush @id, task
-      redis.srem "#{@id}_in_use", task
-    end
+    script :unpop, @id, task
   end
 
   def reset
@@ -49,12 +61,7 @@ class RedisQueue
   end
 
   def init_from set
-    @redis.run do |redis|
-      redis.eval "local vals = redis.call('smembers', '#{set}')
-      for i = 1, table.getn(vals) do
-        redis.call('rpush', '#{@id}', vals[i])
-      end"
-    end
+    script(:init_from, @id, set)
   end
 
   def size
@@ -110,5 +117,20 @@ class RedisQueue
       redis.del "#{@id}_done"
       redis.del "#{@id}_failed"
     end
+  end
+
+  private
+
+  def load_scripts
+    @scripts = {}
+    @redis.run do |redis|
+      SCRIPTS.each do |name, code|
+        @scripts[name] = redis.script(:load, code)
+      end
+    end
+  end
+
+  def script name, *args
+    @redis.run { |redis| redis.evalsha @scripts[name], argv: args }
   end
 end
