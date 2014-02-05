@@ -57,6 +57,11 @@ describe RedisQueue do
       queue.fail "message"
       queue.in_use_list.should == []
     end
+
+    it "empties list when forgetting" do
+      queue.forget "message"
+      queue.in_use_list.should == []
+    end
   end
 
   describe "failed list" do

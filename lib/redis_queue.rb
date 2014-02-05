@@ -50,6 +50,10 @@ class RedisQueue
     script :unpop, @id, task
   end
 
+  def forget task
+    @redis.run { |redis| redis.srem "#{@id}_in_use", task }
+  end
+
   def reset
     init_from "#{@id}_in_use"
     @redis.run { |redis| redis.del "#{@id}_in_use" }
