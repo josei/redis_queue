@@ -2,6 +2,17 @@ require_relative 'redis_connection'
 
 class RedisQueue
   SCRIPTS       = {
+    push: """
+      if ARGV[3] == 'true' then
+        local insert = redis.call('linsert', ARGV[1], 'before', '', ARGV[2])
+        if insert == -1 or insert == 0 then
+          redis.call('lpush', ARGV[1], '')
+          redis.call('lpush', ARGV[1], ARGV[2])
+        end
+      else
+        redis.call('rpush', ARGV[1], ARGV[2])
+      end
+    """,
     fail: """
       redis.call('sadd', ARGV[1]..'_failed', ARGV[2])
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
@@ -29,13 +40,15 @@ class RedisQueue
   end
 
   def pop
-    task = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    begin
+      task = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    end while task == ''
     @redis.run { |redis| redis.sadd "#{@id}_in_use", task }
     task
   end
 
-  def push task
-    @redis.run { |redis| redis.rpush @id, task }
+  def push task, priority=false
+    script :push, @id, task, priority
   end
 
   def fail task

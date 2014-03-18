@@ -15,6 +15,19 @@ describe RedisQueue do
     queue.pop.should == "message 2"
   end
 
+  it "pops preserving priority" do
+    queue.push "message 1"
+    queue.push "message 2", true
+    queue.push "message 3", true
+    queue.push "message 4", true
+    queue.push "message 5"
+    queue.pop.should == "message 2"
+    queue.pop.should == "message 3"
+    queue.pop.should == "message 4"
+    queue.pop.should == "message 1"
+    queue.pop.should == "message 5"
+  end
+
   it "returns queue size" do
     queue.push "message 1"
     queue.push "message 2"

@@ -21,12 +21,12 @@ Whenever a consumer dies, its messages won't be processed by another consumer. T
 Let's build a simple producer that enqueues 4 messages followed by a consumer that properly processes one message, marks one message as failed, forgets to mark another message as either finished or failed, and returns a fourth message back to the queue:
 
 ```ruby
-queue = RedisQueue.new :messages
+queue = RedisQueue.new
 queue.clear
-queue.push "message 1"
 queue.push "message 2"
 queue.push "message 3"
 queue.push "message 4"
+queue.push "message 1", true # This gives priority to this message
 
 queue.pop.tap do |msg|
   queue.done  msg
