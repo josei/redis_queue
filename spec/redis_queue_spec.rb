@@ -116,6 +116,15 @@ describe RedisQueue do
     queue.pop.should ==  "message 1"
   end
 
+  it "repushes message" do
+    queue.push "message 1"
+    queue.push "message 2"
+    queue.repush queue.pop
+    queue.in_use_size.should == 0
+    queue.pop.should ==  "message 2"
+    queue.pop.should ==  "message 1"
+  end
+
   it "resets by putting used messages back to queue" do
     queue.push "message 1"
     queue.push "message 2"

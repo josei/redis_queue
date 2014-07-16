@@ -1,17 +1,22 @@
 require_relative 'redis_connection'
 
 class RedisQueue
-  SCRIPTS       = {
-    push: """
-      if ARGV[3] == 'true' then
-        local insert = redis.call('linsert', ARGV[1], 'before', '', ARGV[2])
-        if insert == -1 or insert == 0 then
-          redis.call('lpush', ARGV[1], '')
-          redis.call('lpush', ARGV[1], ARGV[2])
-        end
-      else
-        redis.call('rpush', ARGV[1], ARGV[2])
+  PUSH_CODE = """
+    if ARGV[3] == 'true' then
+      local insert = redis.call('linsert', ARGV[1], 'before', '', ARGV[2])
+      if insert == -1 or insert == 0 then
+        redis.call('lpush', ARGV[1], '')
+        redis.call('lpush', ARGV[1], ARGV[2])
       end
+    else
+      redis.call('rpush', ARGV[1], ARGV[2])
+    end"""
+
+  SCRIPTS   = {
+    push: PUSH_CODE,
+    repush: """
+      #{PUSH_CODE}
+      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
     """,
     fail: """
       redis.call('sadd', ARGV[1]..'_failed', ARGV[2])
@@ -32,7 +37,8 @@ class RedisQueue
       end"""
   }
 
-  def initialize args={id: :messages, url: 'redis://localhost:6379/0'}
+  def initialize args={}
+    args = {id: :messages, url: 'redis://localhost:6379/0'}.merge(args)
     @id             = args.delete(:id)
     @redis          = RedisConnection.new(args)
     @redis_blocking = RedisConnection.new(args)
@@ -41,30 +47,34 @@ class RedisQueue
 
   def pop
     begin
-      task = @redis_blocking.run { |redis| redis.blpop(@id) }.last
-    end while task == ''
-    @redis.run { |redis| redis.sadd "#{@id}_in_use", task }
-    task
+      message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    end while message == ''
+    @redis.run { |redis| redis.sadd "#{@id}_in_use", message }
+    message
   end
 
-  def push task, priority=false
-    script :push, @id, task, priority
+  def push message, priority=false
+    script :push, @id, message, priority
   end
 
-  def fail task
-    script :fail, @id, task
+  def fail message
+    script :fail, @id, message
   end
 
-  def done task
-    script :done, @id, task
+  def done message
+    script :done, @id, message
   end
 
-  def unpop task
-    script :unpop, @id, task
+  def unpop message
+    script :unpop, @id, message
   end
 
-  def forget task
-    @redis.run { |redis| redis.srem "#{@id}_in_use", task }
+  def repush message, priority=false
+    script :repush, @id, message, priority
+  end
+
+  def forget message
+    @redis.run { |redis| redis.srem "#{@id}_in_use", message }
   end
 
   def reset

@@ -18,7 +18,7 @@ Whenever a consumer dies, its messages won't be processed by another consumer. T
 
 ### Producer-consumer
 
-Let's build a simple producer that enqueues 4 messages followed by a consumer that properly processes one message, marks one message as failed, forgets to mark another message as either finished or failed, and returns a fourth message back to the queue:
+Let's build a simple producer that enqueues some messages followed by a consumer that properly processes one message, marks one message as failed, forgets to mark another message as either finished or failed, returns a fourth, and repushes, unpushes and forgets other messages:
 
 ```ruby
 queue = RedisQueue.new
@@ -26,6 +26,9 @@ queue.clear
 queue.push "message 2"
 queue.push "message 3"
 queue.push "message 4"
+queue.push "message 5"
+queue.push "message 6"
+queue.push "message 7"
 queue.push "message 1", true # This gives priority to this message
 
 queue.pop.tap do |msg|
@@ -39,6 +42,21 @@ queue.pop.tap do |msg|
 end
 
 queue.pop.tap do |msg|
+  puts        msg
+end
+
+queue.pop.tap do |msg|
+  queue.repush msg
+  puts        msg
+end
+
+queue.pop.tap do |msg|
+  queue.repush msg
+  puts        msg
+end
+
+queue.pop.tap do |msg|
+  queue.forget msg
   puts        msg
 end
 
@@ -57,11 +75,14 @@ message 1
 message 2
 message 3
 message 4
-messages enqueued: 1
+message 5
+message 6
+message 7
+messages enqueued: 3
 messages in use:   1
 messages failed:   1
 messages done:     1
-messages enqueued: ["message 4"]
+messages enqueued: ["message 7", "message 4", "message 5"]
 messages in use:   ["message 3"]
 messages failed:   ["message 2"]
 messages done:     ["message 1"]
