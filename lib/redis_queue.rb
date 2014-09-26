@@ -33,7 +33,7 @@ class RedisQueue
     init_from: """
       local vals = redis.call('smembers', ARGV[2])
       for i = 1, table.getn(vals) do
-        redis.call('rpush', ARGV[1], vals[i])
+        redis.call('lpush', ARGV[1], vals[i])
       end"""
   }
 

@@ -5,14 +5,14 @@ describe RedisQueue do
 
   it "pops pushed message" do
     queue.push "message"
-    queue.pop.should == "message"
+    expect(queue.pop).to eq "message"
   end
 
   it "pops preserving order" do
     queue.push "message 1"
     queue.push "message 2"
-    queue.pop.should == "message 1"
-    queue.pop.should == "message 2"
+    expect(queue.pop).to eq "message 1"
+    expect(queue.pop).to eq "message 2"
   end
 
   it "pops preserving priority" do
@@ -21,30 +21,30 @@ describe RedisQueue do
     queue.push "message 3", true
     queue.push "message 4", true
     queue.push "message 5"
-    queue.pop.should == "message 2"
-    queue.pop.should == "message 3"
-    queue.pop.should == "message 4"
-    queue.pop.should == "message 1"
-    queue.pop.should == "message 5"
+    expect(queue.pop).to eq "message 2"
+    expect(queue.pop).to eq "message 3"
+    expect(queue.pop).to eq "message 4"
+    expect(queue.pop).to eq "message 1"
+    expect(queue.pop).to eq "message 5"
   end
 
   it "returns queue size" do
     queue.push "message 1"
     queue.push "message 2"
-    queue.size.should == 2
+    expect(queue.size).to eq 2
   end
 
   it "returns queue list" do
     queue.push "message 1"
     queue.push "message 2"
-    queue.list.should == ["message 1", "message 2"]
+    expect(queue.list).to eq ["message 1", "message 2"]
   end
 
   it "restarts queue" do
     queue.push "message 1"
     queue.done queue.pop
     queue.restart
-    queue.pop.should == "message 1"
+    expect(queue.pop).to eq "message 1"
   end
 
   describe "in use list" do
@@ -54,26 +54,26 @@ describe RedisQueue do
     end
 
     it "returns size" do
-      queue.in_use_size.should == 1
+      expect(queue.in_use_size).to eq 1
     end
 
     it "returns list" do
-      queue.in_use_list.should == ["message"]
+      expect(queue.in_use_list).to eq ["message"]
     end
 
     it "empties list when done" do
       queue.done "message"
-      queue.in_use_list.should == []
+      expect(queue.in_use_list).to eq []
     end
 
     it "empties list when failed" do
       queue.fail "message"
-      queue.in_use_list.should == []
+      expect(queue.in_use_list).to eq []
     end
 
     it "empties list when forgetting" do
       queue.forget "message"
-      queue.in_use_list.should == []
+      expect(queue.in_use_list).to eq []
     end
   end
 
@@ -85,11 +85,11 @@ describe RedisQueue do
     end
 
     it "returns size" do
-      queue.failed_size.should == 1
+      expect(queue.failed_size).to eq 1
     end
 
     it "returns list" do
-      queue.failed_list.should == ["message"]
+      expect(queue.failed_list).to eq ["message"]
     end
   end
 
@@ -101,11 +101,11 @@ describe RedisQueue do
     end
 
     it "returns size" do
-      queue.done_size.should == 1
+      expect(queue.done_size).to eq 1
     end
 
     it "returns list" do
-      queue.done_list.should == ["message"]
+      expect(queue.done_list).to eq ["message"]
     end
   end
 
@@ -113,16 +113,16 @@ describe RedisQueue do
     queue.push "message 1"
     queue.push "message 2"
     queue.unpop queue.pop
-    queue.pop.should ==  "message 1"
+    expect(queue.pop).to eq  "message 1"
   end
 
   it "repushes message" do
     queue.push "message 1"
     queue.push "message 2"
     queue.repush queue.pop
-    queue.in_use_size.should == 0
-    queue.pop.should ==  "message 2"
-    queue.pop.should ==  "message 1"
+    expect(queue.in_use_size).to eq 0
+    expect(queue.pop).to eq  "message 2"
+    expect(queue.pop).to eq  "message 1"
   end
 
   it "resets by putting used messages back to queue" do
@@ -132,6 +132,6 @@ describe RedisQueue do
     queue.pop
     queue.pop
     queue.reset
-    queue.list.should ==  ["message 3", "message 1", "message 2"]
+    expect(queue.list).to eq  ["message 2", "message 1", "message 3"]
   end
 end

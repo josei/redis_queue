@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'redis_queue'
-  s.version     = '0.5'
+  s.version     = '0.5.1'
   s.date        = '2014-07-16'
   s.summary     = "Redis Queue"
   s.description = "A redis-based queue"
