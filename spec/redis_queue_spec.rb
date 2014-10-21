@@ -42,9 +42,10 @@ describe RedisQueue do
 
   it "restarts queue" do
     queue.push "message 1"
+    queue.push "message 2"
     queue.done queue.pop
     queue.restart
-    expect(queue.pop).to eq "message 1"
+    expect(queue.list).to eq ["message 1", "message 2" ]
   end
 
   describe "in use list" do
