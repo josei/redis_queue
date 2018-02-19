@@ -1,7 +1,5 @@
-require_relative 'redis_connection'
-
 class RedisQueue
-  PUSH_CODE = """
+  PUSH_CODE = ''"
     if ARGV[3] == 'true' then
       local insert = redis.call('linsert', ARGV[1], 'before', '', ARGV[2])
       if insert == -1 or insert == 0 then
@@ -10,70 +8,72 @@ class RedisQueue
       end
     else
       redis.call('rpush', ARGV[1], ARGV[2])
-    end"""
+    end"''.freeze
 
   SCRIPTS   = {
     push: PUSH_CODE,
-    repush: """
+    repush: ''"
       #{PUSH_CODE}
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
-    """,
-    fail: """
+    "'',
+    fail: ''"
       redis.call('sadd', ARGV[1]..'_failed', ARGV[2])
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
-    """,
-    done: """
+    "'',
+    done: ''"
       redis.call('sadd', ARGV[1]..'_done', ARGV[2])
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
-    """,
-    unpop: """
+    "'',
+    unpop: ''"
       redis.call('lpush', ARGV[1], ARGV[2])
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
-    """,
-    init_from: """
+    "'',
+    init_from: ''"
       local vals = redis.call('smembers', ARGV[2])
       for i = 1, table.getn(vals) do
         redis.call('lpush', ARGV[1], vals[i])
-      end"""
-  }
+      end"''
+  }.freeze
 
-  def initialize args={}
-    args = {id: :messages, url: 'redis://localhost:6379/0'}.merge(args)
+  def initialize(args = {})
+    args = { id: :messages, url: 'redis://localhost:6379/0' }.merge(args)
     @id             = args.delete(:id)
     @redis          = RedisConnection.new(args)
     @redis_blocking = RedisConnection.new(args)
     load_scripts
   end
 
-  def pop
+  def pop(block: true)
+    command = block ? :blpop : :lpop
     begin
-      message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+      message = @redis_blocking.run { |redis| redis.send(command, @id) }
+      message = message.last if command == :blpop
     end while message == ''
-    @redis.run { |redis| redis.sadd "#{@id}_in_use", message }
+    @redis.run { |redis| redis.sadd "#{@id}_in_use", message } if message
     message
   end
 
-  def push message, priority=false
+  def push(message, priority = false)
     script :push, @id, message, priority
   end
 
-  def fail message
+  def fail(message)
     script :fail, @id, message
   end
 
-  def done message
+  def done(message)
     script :done, @id, message
   end
 
-  def unpop message
+  def unpop(message)
     script :unpop, @id, message
   end
 
-  def repush message, priority=false
+  def repush(message, priority = false)
     script :repush, @id, message, priority
   end
 
-  def forget message
+  def forget(message)
     @redis.run { |redis| redis.srem "#{@id}_in_use", message }
   end
 
@@ -87,7 +87,7 @@ class RedisQueue
     @redis.run { |redis| redis.del "#{@id}_done" }
   end
 
-  def init_from set
+  def init_from(set)
     script(:init_from, @id, set)
   end
 
@@ -157,7 +157,9 @@ class RedisQueue
     end
   end
 
-  def script name, *args
+  def script(name, *args)
     @redis.run { |redis| redis.evalsha @scripts[name], argv: args }
   end
 end
+
+require_relative 'redis_connection'

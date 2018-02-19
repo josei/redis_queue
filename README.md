@@ -23,6 +23,9 @@ Let's build a simple producer that enqueues some messages followed by a consumer
 ```ruby
 queue = RedisQueue.new
 queue.clear
+
+p queue.pop(block: false) # Non-blocking pop, which will return nil when empty
+
 queue.push "message 2"
 queue.push "message 3"
 queue.push "message 4"
@@ -71,6 +74,7 @@ queue.print_contents
 
 The output will be:
 ```
+nil
 message 1
 message 2
 message 3

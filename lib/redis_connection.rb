@@ -1,7 +1,7 @@
 require 'redis'
 
-class RedisConnection
-  def initialize args
+class RedisQueue::RedisConnection
+  def initialize(args)
     @args = args
   end
 
@@ -12,14 +12,14 @@ class RedisConnection
       yield(@redis)
     rescue Redis::CannotConnectError, Redis::TimeoutError => e
       puts e.backtrace
-      puts "Redis crashed, retrying"
-      sleep 5
+      puts 'Redis crashed, retrying'
+      sleep 2
       @redis = new_redis
       retry
     end
   end
 
   def new_redis
-    ::Redis.connect(@args)
+    ::Redis.new(@args)
   end
 end
