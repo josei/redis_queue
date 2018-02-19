@@ -9,5 +9,5 @@ Gem::Specification.new do |s|
   s.files       = ['lib/redis_queue.rb', 'lib/redis_connection.rb']
   s.homepage    = 'http://github.com/josei/redis_queue'
   s.license     = 'MIT'
-  s.add_runtime_dependency 'redis', '~> 4.0.1'
+  s.add_runtime_dependency 'redis', '~> 4.0', '>= 4.0.1'
 end
