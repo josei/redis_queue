@@ -36,6 +36,7 @@ describe RedisQueue do
     end
     expect(queue.pop).to eq 'message 1'
     expect(queue.pop).to eq 'message 2'
+    expect(queue.in_use_list).to eq ['message 2', 'message 1']
   end
 
   it 'pops without blocking' do
@@ -46,6 +47,7 @@ describe RedisQueue do
     end
     expect(queue.pop(block: false)).to eq 'message 1'
     expect(queue.pop(block: false)).to be_nil
+    expect(queue.in_use_list).to eq ['message 1']
   end
 
   it 'returns queue size' do

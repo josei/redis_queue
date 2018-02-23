@@ -12,6 +12,16 @@ class RedisQueue
 
   SCRIPTS   = {
     push: PUSH_CODE,
+    nonblpop: ''"
+      local message = ''
+      while message == '' do
+        message = redis.call('lpop', ARGV[1])
+      end
+      if message then
+        redis.call('sadd', ARGV[1]..'_in_use', message)
+      end
+      return message
+    "'',
     repush: ''"
       #{PUSH_CODE}
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
@@ -44,10 +54,9 @@ class RedisQueue
   end
 
   def pop(block: true)
-    command = block ? :blpop : :lpop
+    return nonblpop unless block
     begin
-      message = @redis_blocking.run { |redis| redis.send(command, @id) }
-      message = message.last if command == :blpop
+      message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
     end while message == ''
     @redis.run { |redis| redis.sadd "#{@id}_in_use", message } if message
     message
@@ -147,6 +156,10 @@ class RedisQueue
   end
 
   private
+
+  def nonblpop
+    script :nonblpop, @id
+  end
 
   def load_scripts
     @scripts = {}
