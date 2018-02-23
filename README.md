@@ -31,8 +31,10 @@ queue.push "message 3"
 queue.push "message 4"
 queue.push "message 5"
 queue.push "message 6"
+queue.push "message 6.5"
 queue.push "message 7"
 queue.push "message 1", true # This gives priority to this message
+queue.remove "message 6.5"
 
 queue.pop.tap do |msg|
   queue.done  msg
@@ -68,6 +70,10 @@ queue.pop.tap do |msg|
   puts        msg
 end
 
+queue.touch.tap do |msg|
+  puts        msg
+end
+
 queue.print_stats
 queue.print_contents
 ```
@@ -82,11 +88,12 @@ message 4
 message 5
 message 6
 message 7
+message 7
 messages enqueued: 3
 messages in use:   1
 messages failed:   1
 messages done:     1
-messages enqueued: ["message 7", "message 4", "message 5"]
+messages enqueued: ["message 4", "message 5", "message 7"]
 messages in use:   ["message 3"]
 messages failed:   ["message 2"]
 messages done:     ["message 1"]

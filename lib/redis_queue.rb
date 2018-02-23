@@ -22,6 +22,16 @@ class RedisQueue
       end
       return message
     "'',
+    touch: ''"
+      local message = ''
+      while message == '' do
+        message = redis.call('lpop', ARGV[1])
+      end
+      if message then
+        redis.call('rpush', ARGV[1], message)
+      end
+      return message
+    "'',
     repush: ''"
       #{PUSH_CODE}
       redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
@@ -55,9 +65,7 @@ class RedisQueue
 
   def pop(block: true)
     return nonblpop unless block
-    begin
-      message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
-    end while message == ''
+    message = blpop
     @redis.run { |redis| redis.sadd "#{@id}_in_use", message } if message
     message
   end
@@ -84,6 +92,17 @@ class RedisQueue
 
   def forget(message)
     @redis.run { |redis| redis.srem "#{@id}_in_use", message }
+  end
+
+  def remove(message)
+    @redis.run { |redis| redis.lrem @id, 0, message }
+  end
+
+  def touch(block: true)
+    return nonbltouch unless block
+    message = blpop
+    push(message)
+    message
   end
 
   def reset
@@ -157,8 +176,19 @@ class RedisQueue
 
   private
 
+  def blpop
+    begin
+      message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
+    end while message == ''
+    message
+  end
+
   def nonblpop
     script :nonblpop, @id
+  end
+
+  def nonbltouch
+    script :touch, @id
   end
 
   def load_scripts

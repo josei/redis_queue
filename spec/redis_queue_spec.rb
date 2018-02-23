@@ -11,6 +11,7 @@ describe RedisQueue do
   it 'pops preserving order' do
     queue.push 'message 1'
     queue.push 'message 2'
+    expect(queue.list).to eq ['message 1', 'message 2']
     expect(queue.pop).to eq 'message 1'
     expect(queue.pop).to eq 'message 2'
   end
@@ -36,7 +37,7 @@ describe RedisQueue do
     end
     expect(queue.pop).to eq 'message 1'
     expect(queue.pop).to eq 'message 2'
-    expect(queue.in_use_list).to eq ['message 2', 'message 1']
+    expect(queue.in_use_list).to match_array ['message 2', 'message 1']
   end
 
   it 'pops without blocking' do
@@ -48,6 +49,39 @@ describe RedisQueue do
     expect(queue.pop(block: false)).to eq 'message 1'
     expect(queue.pop(block: false)).to be_nil
     expect(queue.in_use_list).to eq ['message 1']
+    sleep 0.15
+  end
+
+  it 'removes message' do
+    queue.push 'message 1'
+    queue.push 'message 2'
+    queue.push 'message 3'
+    queue.remove 'message 2'
+    expect(queue.list).to eq ['message 1', 'message 3']
+  end
+
+  it 'taps message blocking' do
+    Thread.new do
+      sleep 0.1
+      queue.push 'message 1'
+    end
+    expect(queue.touch).to eq 'message 1'
+    queue.push 'message 2'
+    expect(queue.touch).to eq 'message 1'
+    expect(queue.list).to eq ['message 2', 'message 1']
+  end
+
+  it 'taps message non-blocking' do
+    Thread.new do
+      sleep 0.1
+      queue.push 'message 1'
+      queue.push 'message 2'
+    end
+    expect(queue.touch(block: false)).to be_nil
+    sleep 0.15
+    expect(queue.touch(block: false)).to eq 'message 1'
+    expect(queue.list).to eq ['message 2', 'message 1']
+    sleep 0.15
   end
 
   it 'returns queue size' do
