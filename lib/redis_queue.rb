@@ -52,7 +52,7 @@ class RedisQueue
       local vals = redis.call('hkeys', ARGV[2])
       for i = 1, table.getn(vals) do
         local timestamp = redis.call('hget', ARGV[2], vals[i])
-        if timestamp < ARGV[3] then
+        if tonumber(timestamp) < tonumber(ARGV[3]) then
           redis.call('lpush', ARGV[1], vals[i])
           redis.call('hdel', ARGV[2], vals[i])
         end
