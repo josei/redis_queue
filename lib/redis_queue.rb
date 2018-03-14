@@ -18,7 +18,7 @@ class RedisQueue
         message = redis.call('lpop', ARGV[1])
       end
       if message then
-        redis.call('sadd', ARGV[1]..'_in_use', message)
+        redis.call('hset', ARGV[1]..'_in_use', message, ARGV[2])
       end
       return message
     "'',
@@ -34,25 +34,30 @@ class RedisQueue
     "'',
     repush: ''"
       #{PUSH_CODE}
-      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+      redis.call('hdel', ARGV[1]..'_in_use', ARGV[2])
     "'',
     fail: ''"
-      redis.call('sadd', ARGV[1]..'_failed', ARGV[2])
-      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+      redis.call('hset', ARGV[1]..'_failed', ARGV[2], ARGV[3])
+      redis.call('hdel', ARGV[1]..'_in_use', ARGV[2])
     "'',
     done: ''"
-      redis.call('sadd', ARGV[1]..'_done', ARGV[2])
-      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+      redis.call('hset', ARGV[1]..'_done', ARGV[2], ARGV[3])
+      redis.call('hdel', ARGV[1]..'_in_use', ARGV[2])
     "'',
     unpop: ''"
       redis.call('lpush', ARGV[1], ARGV[2])
-      redis.call('srem', ARGV[1]..'_in_use', ARGV[2])
+      redis.call('hdel', ARGV[1]..'_in_use', ARGV[2])
     "'',
     init_from: ''"
-      local vals = redis.call('smembers', ARGV[2])
+      local vals = redis.call('hkeys', ARGV[2])
       for i = 1, table.getn(vals) do
-        redis.call('lpush', ARGV[1], vals[i])
-      end"''
+        local timestamp = redis.call('hget', ARGV[2], vals[i])
+        if timestamp < ARGV[3] then
+          redis.call('lpush', ARGV[1], vals[i])
+          redis.call('hdel', ARGV[2], vals[i])
+        end
+      end
+      "''
   }.freeze
 
   def initialize(args = {})
@@ -66,7 +71,7 @@ class RedisQueue
   def pop(block: true)
     return nonblpop unless block
     message = blpop
-    @redis.run { |redis| redis.sadd "#{@id}_in_use", message } if message
+    @redis.run { |redis| redis.hset "#{@id}_in_use", message, now } if message
     message
   end
 
@@ -75,11 +80,11 @@ class RedisQueue
   end
 
   def fail(message)
-    script :fail, @id, message
+    script :fail, @id, message, now
   end
 
   def done(message)
-    script :done, @id, message
+    script :done, @id, message, now
   end
 
   def unpop(message)
@@ -91,7 +96,7 @@ class RedisQueue
   end
 
   def forget(message)
-    @redis.run { |redis| redis.srem "#{@id}_in_use", message }
+    @redis.run { |redis| redis.hdel "#{@id}_in_use", message }
   end
 
   def remove(message)
@@ -105,18 +110,12 @@ class RedisQueue
     message
   end
 
-  def reset
-    init_from "#{@id}_in_use"
-    @redis.run { |redis| redis.del "#{@id}_in_use" }
+  def reset(older_than: nil)
+    init_from "#{@id}_in_use", older_than
   end
 
   def restart
     init_from "#{@id}_done"
-    @redis.run { |redis| redis.del "#{@id}_done" }
-  end
-
-  def init_from(set)
-    script(:init_from, @id, set)
   end
 
   def size
@@ -124,15 +123,15 @@ class RedisQueue
   end
 
   def done_size
-    @redis.run { |redis| redis.scard "#{@id}_done" }.to_i
+    @redis.run { |redis| redis.hlen "#{@id}_done" }.to_i
   end
 
   def failed_size
-    @redis.run { |redis| redis.scard "#{@id}_failed" }.to_i
+    @redis.run { |redis| redis.hlen "#{@id}_failed" }.to_i
   end
 
   def in_use_size
-    @redis.run { |redis| redis.scard "#{@id}_in_use" }.to_i
+    @redis.run { |redis| redis.hlen "#{@id}_in_use" }.to_i
   end
 
   def list
@@ -140,15 +139,15 @@ class RedisQueue
   end
 
   def done_list
-    @redis.run { |redis| redis.smembers "#{@id}_done" }
+    Hash[@redis.run { |redis| redis.hgetall "#{@id}_done" }]
   end
 
   def failed_list
-    @redis.run { |redis| redis.smembers "#{@id}_failed" }
+    Hash[@redis.run { |redis| redis.hgetall "#{@id}_failed" }]
   end
 
   def in_use_list
-    @redis.run { |redis| redis.smembers "#{@id}_in_use" }
+    Hash[@redis.run { |redis| redis.hgetall "#{@id}_in_use" }]
   end
 
   def print_stats
@@ -177,18 +176,22 @@ class RedisQueue
   private
 
   def blpop
-    begin
+    loop do
       message = @redis_blocking.run { |redis| redis.blpop(@id) }.last
-    end while message == ''
-    message
+      return message unless message == ''
+    end
   end
 
   def nonblpop
-    script :nonblpop, @id
+    script :nonblpop, @id, now
   end
 
   def nonbltouch
     script :touch, @id
+  end
+
+  def init_from(key, older_than = nil)
+    script(:init_from, @id, key, older_than || now + 100_000)
   end
 
   def load_scripts
@@ -202,6 +205,10 @@ class RedisQueue
 
   def script(name, *args)
     @redis.run { |redis| redis.evalsha @scripts[name], argv: args }
+  end
+
+  def now
+    (Time.now.to_f * 1000).to_i
   end
 end
 

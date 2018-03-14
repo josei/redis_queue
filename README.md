@@ -21,6 +21,8 @@ Whenever a consumer dies, its messages won't be processed by another consumer. T
 Let's build a simple producer that enqueues some messages followed by a consumer that properly processes one message, marks one message as failed, forgets to mark another message as either finished or failed, returns a fourth, and repushes, unpushes and forgets other messages:
 
 ```ruby
+require 'redis_queue'
+
 queue = RedisQueue.new
 queue.clear
 
@@ -94,10 +96,12 @@ messages in use:   1
 messages failed:   1
 messages done:     1
 messages enqueued: ["message 4", "message 5", "message 7"]
-messages in use:   ["message 3"]
-messages failed:   ["message 2"]
-messages done:     ["message 1"]
+messages in use:   {"message 3"=>"1521025376623"}
+messages failed:   {"message 2"=>"1521025376616"}
+messages done:     {"message 1"=>"1521025376603"}
 ```
+
+In use, failed, and done lists are Redis hashes which store the messages timestamps in milliseconds.
 
 ## Copyright
 

@@ -37,7 +37,7 @@ describe RedisQueue do
     end
     expect(queue.pop).to eq 'message 1'
     expect(queue.pop).to eq 'message 2'
-    expect(queue.in_use_list).to match_array ['message 2', 'message 1']
+    expect(queue.in_use_list.keys).to match_array ['message 2', 'message 1']
   end
 
   it 'pops without blocking' do
@@ -48,7 +48,7 @@ describe RedisQueue do
     end
     expect(queue.pop(block: false)).to eq 'message 1'
     expect(queue.pop(block: false)).to be_nil
-    expect(queue.in_use_list).to eq ['message 1']
+    expect(queue.in_use_list.keys).to eq ['message 1']
     sleep 0.15
   end
 
@@ -102,6 +102,8 @@ describe RedisQueue do
     queue.done queue.pop
     queue.restart
     expect(queue.list).to eq ['message 1', 'message 2']
+    expect(queue.done_size).to eq 0
+    expect(queue.in_use_size).to eq 0
   end
 
   describe 'in use list' do
@@ -115,22 +117,22 @@ describe RedisQueue do
     end
 
     it 'returns list' do
-      expect(queue.in_use_list).to eq ['message']
+      expect(queue.in_use_list.keys).to eq ['message']
     end
 
     it 'empties list when done' do
       queue.done 'message'
-      expect(queue.in_use_list).to eq []
+      expect(queue.in_use_list.keys).to eq []
     end
 
     it 'empties list when failed' do
       queue.fail 'message'
-      expect(queue.in_use_list).to eq []
+      expect(queue.in_use_list.keys).to eq []
     end
 
     it 'empties list when forgetting' do
       queue.forget 'message'
-      expect(queue.in_use_list).to eq []
+      expect(queue.in_use_list.keys).to eq []
     end
   end
 
@@ -146,7 +148,7 @@ describe RedisQueue do
     end
 
     it 'returns list' do
-      expect(queue.failed_list).to eq ['message']
+      expect(queue.failed_list.keys).to eq ['message']
     end
   end
 
@@ -162,7 +164,7 @@ describe RedisQueue do
     end
 
     it 'returns list' do
-      expect(queue.done_list).to eq ['message']
+      expect(queue.done_list.keys).to eq ['message']
     end
   end
 
@@ -190,5 +192,17 @@ describe RedisQueue do
     queue.pop
     queue.reset
     expect(queue.list).to eq ['message 2', 'message 1', 'message 3']
+  end
+
+  it 'resets by putting only old used messages back to queue' do
+    queue.push 'message 1'
+    queue.push 'message 2'
+    queue.push 'message 3'
+    queue.pop
+    sleep 0.5
+    queue.pop
+    a_fraction_of_a_second_ago = ((Time.now.to_f - 0.25) * 1000).to_i
+    queue.reset(older_than: a_fraction_of_a_second_ago)
+    expect(queue.list).to eq ['message 1', 'message 3']
   end
 end
